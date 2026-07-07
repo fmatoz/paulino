@@ -13,6 +13,68 @@ document.querySelectorAll("[data-wa]").forEach((el) => {
   el.setAttribute("rel", "noreferrer");
 });
 
+// Carrossel: auto-scroll lento + arraste com mouse/dedo (pause enquanto arrasta, retoma ao soltar)
+(function initCarousel() {
+  const carousel = document.querySelector(".carousel");
+  const track = document.getElementById("carousel-track");
+  if (!carousel || !track) return;
+
+  const PIXELS_PER_SECOND = 18; // velocidade suave
+  let scrollPos = 0;
+  let paused = false;
+  let dragging = false;
+  let startX = 0;
+  let startScroll = 0;
+  let lastFrame = performance.now();
+  let resumeTimer;
+
+  const halfWidth = () => track.scrollWidth / 2; // track é duplicado no HTML
+  const wrap = (v) => {
+    const w = halfWidth();
+    if (w <= 0) return v;
+    let r = v % w;
+    if (r < 0) r += w;
+    return r;
+  };
+
+  function tick(now) {
+    const dt = Math.min((now - lastFrame) / 1000, 0.05);
+    lastFrame = now;
+    if (dragging) {
+      scrollPos = wrap(carousel.scrollLeft);
+    } else if (!paused) {
+      scrollPos = wrap(scrollPos + PIXELS_PER_SECOND * dt);
+      carousel.scrollLeft = scrollPos;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  carousel.addEventListener("mouseenter", () => { paused = true; });
+  carousel.addEventListener("mouseleave", () => { if (!dragging) paused = false; });
+
+  carousel.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    paused = true;
+    startX = e.clientX;
+    startScroll = carousel.scrollLeft;
+    try { carousel.setPointerCapture(e.pointerId); } catch (_) {}
+    if (resumeTimer) clearTimeout(resumeTimer);
+  });
+  carousel.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    carousel.scrollLeft = wrap(startScroll - (e.clientX - startX));
+  });
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    try { carousel.releasePointerCapture(e.pointerId); } catch (_) {}
+    resumeTimer = setTimeout(() => { paused = false; }, 600);
+  };
+  carousel.addEventListener("pointerup", endDrag);
+  carousel.addEventListener("pointercancel", endDrag);
+})();
+
 // Countdown to midnight
 const pad = (n) => String(n).padStart(2, "0");
 function updateCountdown() {
